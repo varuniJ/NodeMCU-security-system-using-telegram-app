@@ -1,0 +1,111 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <ESP8266WiFi.h>
+#include <WiFiClientSecure.h>
+#include <UniversalTelegramBot.h>
+
+// Initialize the LCD
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// WiFi credentials
+const char* ssid = "narpat";
+const char* password = "SoNi@789";
+
+// Telegram Bot Token
+#define BOTtoken "7205213245:AAERQz52rQyqkelH_iepad8wHMq26o2xC24"  // Add a valid BOT token
+#define CHAT_ID "2098612287"
+
+// Pin definitions for ESP8266
+#define Sensor 16  // D0
+#define LEDR 0    // D3
+#define LEDG 2    // D4
+#define Buzzer 14 // D5
+
+X509List cert(TELEGRAM_CERTIFICATE_ROOT);
+WiFiClientSecure client;
+UniversalTelegramBot bot(BOTtoken, client);
+
+void setup() {
+  Serial.begin(115200);
+  lcd.init();
+  lcd.backlight();
+  Wire.begin(4, 5); // D2 = 4, D1 = 5
+  configTime(0, 0, "pool.ntp.org");  // Get UTC time via NTP
+  client.setTrustAnchors(&cert);  // Add root certificate for api.telegram.org
+
+  // Set pin modes
+  pinMode(Sensor, INPUT);
+  pinMode(LEDR, OUTPUT);
+  pinMode(LEDG, OUTPUT);
+  pinMode(Buzzer, OUTPUT);
+
+  // Connect to WiFi
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  Serial.print("Connecting to WiFi");
+  lcd.setCursor(0, 0);
+  lcd.print("Connecting to WiFi");
+
+  // int maxAttempts = 30; // Timeout after 30 attempts (15 seconds)
+  // int attempt = 0;
+  while (WiFi.status() != WL_CONNECTED ) {
+    
+
+    delay(500);
+    Serial.print(".");
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi connected");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi connected");
+    Serial.print("IP address: ");
+    lcd.setCursor(0, 1);
+    lcd.print(WiFi.localIP());
+    Serial.println(WiFi.localIP());
+    delay(500);
+
+    bot.sendMessage(CHAT_ID, "System started", "");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("System started");
+    delay(1000);
+    lcd.clear();
+  } else {
+    Serial.println("\nWiFi connection failed");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi failed");
+    // Add any additional handling for WiFi connection failure here
+  }
+}
+
+void loop() {
+  bool value = digitalRead(Sensor);
+  Serial.print("Sensor value: ");
+  Serial.println(value);
+  if (value == HIGH) {
+    Serial.println("Motion Detected");
+    digitalWrite(LEDR, HIGH);
+    digitalWrite(Buzzer, HIGH);
+    digitalWrite(LEDG, LOW);
+    lcd.setCursor(0, 0);
+    lcd.print("Motion Detected");
+
+    bool sent = bot.sendMessage(CHAT_ID, "Motion detected!!", "");
+    if (sent) {
+      Serial.println("Message sent successfully");
+    } else {
+      Serial.println("Failed to send message");
+    }
+  } else {
+    digitalWrite(LEDR, LOW);
+    digitalWrite(Buzzer, LOW);
+    digitalWrite(LEDG, HIGH);
+    lcd.setCursor(0, 0);
+    lcd.print("No Motion      ");
+  }
+  delay(1000);  // Small delay to avoid flooding the Serial monitor
+}
